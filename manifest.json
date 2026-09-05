@@ -1,0 +1,29 @@
+{
+  "name": "Dwarven RPG v1.0.0",
+  "short_name": "Dwarven RPG",
+  "description": "Dwarven RPG - Authentic Native Flash RPG Mobile Edition",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#06080e",
+  "theme_color": "#06080e",
+  "categories": [
+    "games",
+    "roleplaying"
+  ],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
