@@ -80,7 +80,6 @@ function unlockGlobalAudio() {
                 if (actx && actx.state !== "running") {
                     actx.resume().then(() => {
                         console.log("[Audio] Ruffle AudioContext is running!");
-                        if (typeof updateSoundBtn === "function") updateSoundBtn();
                     }).catch(() => {});
                 }
             }
@@ -266,28 +265,7 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Sound button in ui-bar
-    const soundBtn = document.getElementById("sound-btn");
-    window.updateSoundBtn = function() {
-        if (!soundBtn) return;
-        const p = window._gamePlayer;
-        const actx = p?.instance?.audio_context?.();
-        if (actx && actx.state === "running") {
-            soundBtn.innerText = "🔊 Sound ON";
-            soundBtn.style.color = "#4ade80";
-        } else {
-            soundBtn.innerText = "🔇 Sound OFF";
-            soundBtn.style.color = "#f87171";
-        }
-    };
 
-    if (soundBtn) {
-        window.updateSoundBtn();
-        soundBtn.addEventListener("click", () => {
-            unlockGlobalAudio();
-            setTimeout(window.updateSoundBtn, 300);
-        });
-    }
 
     // Initialize Virtual D-Pad
     setupVirtualDpad();
