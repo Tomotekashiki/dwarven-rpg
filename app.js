@@ -208,15 +208,6 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    // Dismiss Rotate Prompt
-    const dismissBtn = document.getElementById("dismiss-rotate-btn");
-    if (dismissBtn) {
-        dismissBtn.addEventListener("click", () => {
-            const hint = document.getElementById("rotate-hint");
-            if (hint) hint.classList.add("hidden");
-        });
-    }
-
     // Initialize Virtual D-Pad
     setupVirtualDpad();
 
@@ -440,7 +431,25 @@ function setupVirtualDpad() {
     });
 }
 
-// Resume game loop and audio when returning from background
+// WebGL Context Loss Prevention & Recovery
+function watchWebGlContext() {
+    const p = window._gamePlayer;
+    if (!p || !p.shadowRoot) return;
+    const canvas = p.shadowRoot.querySelector("canvas");
+    if (canvas && !canvas._watched) {
+        canvas._watched = true;
+        canvas.addEventListener("webglcontextlost", (e) => {
+            console.warn("[WebGL] Context lost during orientation change. Preventing default to allow recovery...");
+            e.preventDefault();
+        }, false);
+        canvas.addEventListener("webglcontextrestored", () => {
+            console.log("[WebGL] Context restored! Resuming game loop...");
+            ensureGameResumed();
+        }, false);
+    }
+}
+
+// Resume game loop and audio when returning from background or rotating device
 function ensureGameResumed() {
     const p = window._gamePlayer;
     if (!p) return;
@@ -460,11 +469,24 @@ function ensureGameResumed() {
                 }
             }
         }
+        watchWebGlContext();
     } catch (e) {
         console.warn("Resume attempt:", e);
     }
 }
 
+// Debounced handler for device rotation and viewport resizing
+let screenChangeTimer = null;
+function onScreenOrientationOrResize() {
+    ensureGameResumed();
+    if (screenChangeTimer) clearTimeout(screenChangeTimer);
+    screenChangeTimer = setTimeout(() => {
+        ensureGameResumed();
+    }, 350);
+}
+
+window.addEventListener("orientationchange", onScreenOrientationOrResize);
+window.addEventListener("resize", onScreenOrientationOrResize);
 window.addEventListener("focus", ensureGameResumed);
 window.addEventListener("pageshow", ensureGameResumed);
 document.addEventListener("visibilitychange", () => {
