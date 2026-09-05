@@ -18,17 +18,51 @@
     <link rel="apple-touch-icon" sizes="512x512" href="icons/icon-512.png">
 
     <link rel="stylesheet" href="style.css">
+
+    <!-- Global Ruffle Config MUST precede ruffle.js script tag -->
+    <script>
+        window.RufflePlayer = window.RufflePlayer || {};
+        window.RufflePlayer.config = {
+            publicPath: "./ruffle/",
+            autoplay: "auto",
+            unmuteOverlay: "visible",
+            letterbox: "on",
+            quality: "high",
+            scale: "showAll",
+            forceScale: true,
+            splashScreen: false,
+            openUrlMode: "confirm",
+            allowScriptAccess: true,
+            preferredRenderer: "webgl",
+            backgroundExecutionMode: "mainThread"
+        };
+    </script>
     <script src="ruffle/ruffle.js"></script>
 </head>
 <body>
+    <!-- Diagnostic error banner for mobile debugging -->
+    <div id="error-log"></div>
+
     <div id="app-container">
         <div id="player-container"></div>
         
         <div id="ui-bar">
+            <button id="renderer-btn" class="ui-btn" title="Toggle WebGL/Canvas">🎨 WebGL</button>
             <button id="fullscreen-btn" class="ui-btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
         </div>
 
         <div id="version-badge">v1.0.0</div>
+    </div>
+
+    <!-- Start / Audio Unlock Overlay for iOS & Mobile Safari -->
+    <div id="start-overlay">
+        <div class="start-box">
+            <img src="favicon.png" class="start-logo" alt="Lineage II Dwarf">
+            <h1>Dwarven RPG</h1>
+            <p>Lineage II Mini-Game</p>
+            <button id="start-game-btn">▶️ დაიწყე თამაში</button>
+            <div id="status-text">იტვირთება...</div>
+        </div>
     </div>
 
     <!-- Rotate Device Prompt for Portrait Mode -->

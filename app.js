@@ -2,33 +2,61 @@
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js")
-            .then(reg => console.log("[PWA] ServiceWorker registered:", reg.scope))
+            .then(reg => {
+                console.log("[PWA] ServiceWorker registered:", reg.scope);
+                reg.update();
+            })
             .catch(err => console.warn("[PWA] ServiceWorker registration failed:", err));
     });
 }
 
-window.RufflePlayer = window.RufflePlayer || {};
-window.RufflePlayer.config = {
-    autoplay: "on",
-    unmuteOverlay: "hidden",
-    letterbox: "on",
-    quality: "high",
-    scale: "showAll",
-    forceScale: true,
-    splashScreen: false,
-    openUrlMode: "confirm",
-    allowScriptAccess: true,
-    preferredRenderer: "webgl",
-    backgroundExecutionMode: "mainThread"
-};
+// On-screen diagnostic logger for mobile browsers
+function showError(msg) {
+    console.error("[App Error]", msg);
+    const errBox = document.getElementById("error-log");
+    if (errBox) {
+        errBox.style.display = "block";
+        errBox.innerText = "[შეცდომა / Error]: " + msg;
+    }
+}
 
 window.addEventListener("error", (e) => {
-    console.error("[Runtime Error]", e.message, e.filename, e.lineno);
+    const file = e.filename ? e.filename.split('/').pop() : "unknown";
+    showError((e.message || "Script error") + " (" + file + ":" + (e.lineno || 0) + ")");
 });
 
 window.addEventListener("unhandledrejection", (e) => {
-    console.error("[Unhandled Promise Rejection]", e.reason);
+    const reason = e.reason ? (e.reason.message || String(e.reason)) : "Unknown rejection";
+    showError("Unhandled Rejection: " + reason);
 });
+
+// Global audio unlock state
+let audioUnlocked = false;
+function unlockGlobalAudio() {
+    if (audioUnlocked) return;
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+            const ctx = new AudioCtx();
+            ctx.resume().then(() => {
+                console.log("[Audio] System audio context unlocked successfully");
+                audioUnlocked = true;
+            }).catch(e => console.warn("[Audio] Context resume failed:", e));
+        }
+    } catch (err) {
+        console.warn("[Audio] Audio unlock error:", err);
+    }
+}
+
+let player = null;
+let currentRenderer = "webgl";
+
+function updateRendererBtn() {
+    const rendererBtn = document.getElementById("renderer-btn");
+    if (rendererBtn) {
+        rendererBtn.innerText = currentRenderer === "webgl" ? "🎨 WebGL" : "🎨 Canvas";
+    }
+}
 
 window.addEventListener("DOMContentLoaded", () => {
     // Attempt orientation lock to landscape if supported
@@ -36,13 +64,13 @@ window.addEventListener("DOMContentLoaded", () => {
         screen.orientation.lock("landscape").catch(() => {});
     }
 
-    const ruffle = window.RufflePlayer.newest();
+    const ruffle = window.RufflePlayer && window.RufflePlayer.newest ? window.RufflePlayer.newest() : null;
     if (!ruffle) {
-        console.error("Ruffle engine failed to initialize.");
+        showError("Ruffle engine could not be loaded. Please refresh or check connection.");
         return;
     }
-    
-    const player = ruffle.createPlayer();
+
+    player = ruffle.createPlayer();
     window._gamePlayer = player;
     const container = document.getElementById("player-container");
     container.appendChild(player);
@@ -50,55 +78,118 @@ window.addEventListener("DOMContentLoaded", () => {
     player.style.width = "100%";
     player.style.height = "100%";
 
-    // Auto-fallback to Canvas if mobile GPU / WebGL runs out of memory
+    // Auto-fallback panic handler
     if (typeof player.panic === "function") {
         const originalPanic = player.panic.bind(player);
         player.panic = function(err) {
             console.warn("Ruffle panic intercepted:", err);
             const errStr = String(err && (err.message || err));
-            if (errStr.includes("Out of Memory") || errStr.includes("wgpu") || errStr.includes("buffer")) {
-                console.log("Memory/GPU error detected. Automatically falling back to Canvas renderer...");
-                if (typeof player.reloadWithCanvasRenderer === "function") {
-                    player.reloadWithCanvasRenderer().catch((fallbackErr) => {
-                        console.error("Canvas fallback failed:", fallbackErr);
-                        originalPanic(err);
-                    });
-                    return;
-                }
+            showError("Ruffle Panic: " + errStr);
+            if (typeof player.reloadWithCanvasRenderer === "function") {
+                console.log("Switching to Canvas renderer fallback...");
+                currentRenderer = "canvas";
+                updateRendererBtn();
+                player.reloadWithCanvasRenderer().catch((fbErr) => {
+                    originalPanic(err);
+                });
+                return;
             }
             originalPanic(err);
         };
     }
 
+    const statusText = document.getElementById("status-text");
+    if (statusText) statusText.innerText = "იტვირთება...";
+
+    // Load SWF game
     player.load({
         url: "game.swf",
-        parameters: {},
         autoplay: "auto",
-        backgroundColor: "#000000",
-        preferredRenderer: "webgl"
+        backgroundColor: "#000000"
     }).then(() => {
-        console.log("Dwarven RPG Mobile PWA loaded successfully!");
+        console.log("Dwarven RPG loaded successfully");
+        if (statusText) statusText.innerText = "თამაში მზადაა!";
     }).catch((err) => {
-        console.error("Failed to load SWF:", err);
+        const msg = err && err.message ? err.message : String(err);
+        showError("SWF Load Error: " + msg);
+        if (typeof player.reloadWithCanvasRenderer === "function") {
+            currentRenderer = "canvas";
+            updateRendererBtn();
+            player.reloadWithCanvasRenderer().catch(() => {});
+        }
     });
+
+    // Start / Audio Unlock Button
+    const startOverlay = document.getElementById("start-overlay");
+    const startBtn = document.getElementById("start-game-btn");
+
+    function startGame() {
+        unlockGlobalAudio();
+        if (player) {
+            try {
+                if (typeof player.play === "function") player.play();
+                if (player.instance) {
+                    if (typeof player.instance.play === "function") player.instance.play();
+                    if (typeof player.instance.audio_context === "function") {
+                        const actx = player.instance.audio_context();
+                        if (actx && actx.state === "suspended") {
+                            actx.resume();
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("Start play trigger warning:", e);
+            }
+        }
+        if (startOverlay) {
+            startOverlay.classList.add("fade-out");
+            setTimeout(() => {
+                startOverlay.style.display = "none";
+            }, 350);
+        }
+    }
+
+    if (startBtn) {
+        startBtn.addEventListener("click", startGame);
+        startBtn.addEventListener("touchend", (e) => {
+            e.preventDefault();
+            startGame();
+        });
+    }
 
     // Mobile Fullscreen Toggle Button
     const fsBtn = document.getElementById("fullscreen-btn");
     if (fsBtn) {
         fsBtn.addEventListener("click", () => {
-            if (!document.fullscreenElement) {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
                 const el = document.documentElement;
                 if (el.requestFullscreen) {
-                    el.requestFullscreen();
+                    el.requestFullscreen().catch(() => {});
                 } else if (el.webkitRequestFullscreen) {
                     el.webkitRequestFullscreen();
                 }
             } else {
                 if (document.exitFullscreen) {
-                    document.exitFullscreen();
+                    document.exitFullscreen().catch(() => {});
                 } else if (document.webkitExitFullscreen) {
                     document.webkitExitFullscreen();
                 }
+            }
+        });
+    }
+
+    // Toggle Renderer button (WebGL <-> Canvas)
+    const rendererBtn = document.getElementById("renderer-btn");
+    if (rendererBtn) {
+        updateRendererBtn();
+        rendererBtn.addEventListener("click", () => {
+            if (!player) return;
+            if (currentRenderer === "webgl" && typeof player.reloadWithCanvasRenderer === "function") {
+                currentRenderer = "canvas";
+                updateRendererBtn();
+                player.reloadWithCanvasRenderer().catch(err => showError("Canvas switch: " + err));
+            } else {
+                location.reload();
             }
         });
     }
@@ -108,25 +199,13 @@ window.addEventListener("DOMContentLoaded", () => {
     if (dismissBtn) {
         dismissBtn.addEventListener("click", () => {
             const hint = document.getElementById("rotate-hint");
-            if (hint) hint.style.display = "none";
+            if (hint) hint.classList.add("hidden");
         });
     }
 
-    // Audio Unlock for Mobile Browsers (iOS Safari / Android Chrome require touch gesture)
-    function unlockAudio() {
-        if (window._gamePlayer && window._gamePlayer.instance) {
-            try {
-                if (typeof window._gamePlayer.instance.audio_context === "function") {
-                    const actx = window._gamePlayer.instance.audio_context();
-                    if (actx && actx.state === "suspended") {
-                        actx.resume();
-                    }
-                }
-            } catch (e) {}
-        }
-    }
-    window.addEventListener("touchstart", unlockAudio, { once: true });
-    window.addEventListener("click", unlockAudio, { once: true });
+    // Fallback audio unlock on any early user tap
+    window.addEventListener("touchstart", unlockGlobalAudio, { once: true });
+    window.addEventListener("click", unlockGlobalAudio, { once: true });
 });
 
 // Resume game loop and audio when returning from background

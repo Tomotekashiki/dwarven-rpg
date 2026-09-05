@@ -1,4 +1,4 @@
-const CACHE_NAME = "dwarven-rpg-v1.0.0";
+const CACHE_NAME = "dwarven-rpg-v1.0.2";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
@@ -11,8 +11,6 @@ const ASSETS_TO_CACHE = [
   "./icons/icon-512.png",
   "./icons/icon-180.png",
   "./ruffle/ruffle.js",
-  "./ruffle/6ce4f603a1fe7cc88438.wasm",
-  "./ruffle/a71cef02d58dcec6f55f.wasm",
   "./ruffle/core.ruffle.15317142e75ce021ac04.js",
   "./ruffle/core.ruffle.5e30dc5777a75720eae2.js"
 ];
@@ -20,7 +18,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log("[Service Worker] Caching game assets for offline play...");
+      console.log("[Service Worker] Caching core assets...");
       return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => self.skipWaiting())
   );
@@ -42,6 +40,13 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
+  // Safari / iOS WebKit Bug Fix:
+  // WebAssembly streaming instantiation fails if intercepted by Service Worker synthetic response.
+  // We let the browser fetch .wasm files natively via HTTP/HTTPS directly.
+  if (event.request.url.includes(".wasm")) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
