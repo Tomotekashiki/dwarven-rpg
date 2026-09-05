@@ -47,8 +47,20 @@
         <div id="player-container"></div>
         
         <div id="ui-bar">
+            <button id="dpad-toggle-btn" class="ui-btn active" title="Toggle Virtual D-Pad">🕹️ D-Pad</button>
             <button id="renderer-btn" class="ui-btn" title="Toggle WebGL/Canvas">🎨 WebGL</button>
             <button id="fullscreen-btn" class="ui-btn" title="Toggle Fullscreen">⛶ Fullscreen</button>
+        </div>
+
+        <!-- Virtual D-Pad for Mobile Controls -->
+        <div id="virtual-dpad">
+            <div class="dpad-cross">
+                <button class="dpad-btn dpad-up" data-dir="up" aria-label="Up">▲</button>
+                <button class="dpad-btn dpad-left" data-dir="left" aria-label="Left">◀</button>
+                <div class="dpad-center"></div>
+                <button class="dpad-btn dpad-right" data-dir="right" aria-label="Right">▶</button>
+                <button class="dpad-btn dpad-down" data-dir="down" aria-label="Down">▼</button>
+            </div>
         </div>
 
         <div id="version-badge">v1.0.0</div>

@@ -217,10 +217,228 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Initialize Virtual D-Pad
+    setupVirtualDpad();
+
     // Fallback audio unlock on any early user tap
     window.addEventListener("touchstart", unlockGlobalAudio, { once: true });
     window.addEventListener("click", unlockGlobalAudio, { once: true });
 });
+
+// ==========================================
+// Virtual D-Pad Controller for Mobile Play
+// ==========================================
+const DIRECTION_KEYS = {
+    up: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
+    down: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
+    left: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 },
+    right: { key: "ArrowRight", code: "ArrowRight", keyCode: 39 }
+};
+
+const activeDirections = new Set();
+let repeatTimer = null;
+
+function sendDirectionKeyEvent(type, dir) {
+    const config = DIRECTION_KEYS[dir];
+    if (!config) return;
+
+    const ev = new KeyboardEvent(type, {
+        key: config.key,
+        code: config.code,
+        keyCode: config.keyCode,
+        which: config.keyCode,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+    });
+
+    try {
+        Object.defineProperty(ev, "keyCode", { get: () => config.keyCode });
+        Object.defineProperty(ev, "which", { get: () => config.keyCode });
+    } catch (e) {}
+
+    window.dispatchEvent(ev);
+    document.dispatchEvent(ev);
+
+    const player = window._gamePlayer;
+    if (player) {
+        player.dispatchEvent(ev);
+        if (player.shadowRoot) {
+            const canvas = player.shadowRoot.querySelector("canvas");
+            if (canvas) canvas.dispatchEvent(ev);
+            const container = player.shadowRoot.querySelector("#container");
+            if (container) container.dispatchEvent(ev);
+        }
+    }
+}
+
+function updateDpadVisuals() {
+    document.querySelectorAll(".dpad-btn").forEach(btn => {
+        const dir = btn.getAttribute("data-dir");
+        if (activeDirections.has(dir)) {
+            btn.classList.add("pressed");
+        } else {
+            btn.classList.remove("pressed");
+        }
+    });
+}
+
+function activateDirection(dir) {
+    if (!DIRECTION_KEYS[dir]) return;
+    if (!activeDirections.has(dir)) {
+        activeDirections.add(dir);
+        updateDpadVisuals();
+        sendDirectionKeyEvent("keydown", dir);
+    }
+    if (!repeatTimer) {
+        repeatTimer = setInterval(() => {
+            for (const d of activeDirections) {
+                sendDirectionKeyEvent("keydown", d);
+            }
+        }, 50);
+    }
+}
+
+function deactivateDirection(dir) {
+    if (activeDirections.has(dir)) {
+        activeDirections.delete(dir);
+        updateDpadVisuals();
+        sendDirectionKeyEvent("keyup", dir);
+    }
+    if (activeDirections.size === 0 && repeatTimer) {
+        clearInterval(repeatTimer);
+        repeatTimer = null;
+    }
+}
+
+function deactivateAllDirections() {
+    for (const d of Array.from(activeDirections)) {
+        sendDirectionKeyEvent("keyup", d);
+    }
+    activeDirections.clear();
+    updateDpadVisuals();
+    if (repeatTimer) {
+        clearInterval(repeatTimer);
+        repeatTimer = null;
+    }
+}
+
+function setupVirtualDpad() {
+    const dpad = document.getElementById("virtual-dpad");
+    if (!dpad) return;
+
+    function handleDpadTouch(e) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (e.type === "touchend" || e.type === "touchcancel") {
+            if (e.touches.length === 0) {
+                deactivateAllDirections();
+            }
+            return;
+        }
+
+        const rect = dpad.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        let activeTouch = null;
+        for (let i = 0; i < e.touches.length; i++) {
+            const t = e.touches[i];
+            const dx = t.clientX - centerX;
+            const dy = t.clientY - centerY;
+            if (Math.hypot(dx, dy) < rect.width) {
+                activeTouch = t;
+                break;
+            }
+        }
+
+        if (!activeTouch) {
+            deactivateAllDirections();
+            return;
+        }
+
+        const dx = activeTouch.clientX - centerX;
+        const dy = activeTouch.clientY - centerY;
+        const dist = Math.hypot(dx, dy);
+
+        // Dead zone in center
+        if (dist < 14) {
+            deactivateAllDirections();
+            return;
+        }
+
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI); // -180 to 180
+
+        let newDir = null;
+        if (angle >= -135 && angle < -45) {
+            newDir = "up";
+        } else if (angle >= -45 && angle < 45) {
+            newDir = "right";
+        } else if (angle >= 45 && angle < 135) {
+            newDir = "down";
+        } else {
+            newDir = "left";
+        }
+
+        for (const d of Array.from(activeDirections)) {
+            if (d !== newDir) {
+                deactivateDirection(d);
+            }
+        }
+
+        if (newDir) {
+            activateDirection(newDir);
+        }
+    }
+
+    dpad.addEventListener("touchstart", handleDpadTouch, { passive: false });
+    dpad.addEventListener("touchmove", handleDpadTouch, { passive: false });
+    dpad.addEventListener("touchend", handleDpadTouch, { passive: false });
+    dpad.addEventListener("touchcancel", handleDpadTouch, { passive: false });
+
+    // Mouse click support
+    let isMouseDown = false;
+    dpad.addEventListener("mousedown", (e) => {
+        isMouseDown = true;
+        const btn = e.target.closest(".dpad-btn");
+        if (btn) activateDirection(btn.getAttribute("data-dir"));
+    });
+    window.addEventListener("mouseup", () => {
+        if (isMouseDown) {
+            isMouseDown = false;
+            deactivateAllDirections();
+        }
+    });
+
+    // Toggle button in UI bar
+    const toggleBtn = document.getElementById("dpad-toggle-btn");
+    if (toggleBtn) {
+        toggleBtn.addEventListener("click", () => {
+            if (dpad.style.display === "none") {
+                dpad.style.display = "block";
+                toggleBtn.classList.add("active");
+            } else {
+                dpad.style.display = "none";
+                toggleBtn.classList.remove("active");
+            }
+        });
+    }
+
+    // WASD keyboard support on desktop
+    window.addEventListener("keydown", (e) => {
+        const wasd = { KeyW: "up", KeyA: "left", KeyS: "down", KeyD: "right" };
+        if (wasd[e.code] && !e.repeat) {
+            activateDirection(wasd[e.code]);
+        }
+    });
+    window.addEventListener("keyup", (e) => {
+        const wasd = { KeyW: "up", KeyA: "left", KeyS: "down", KeyD: "right" };
+        if (wasd[e.code]) {
+            deactivateDirection(wasd[e.code]);
+        }
+    });
+}
 
 // Resume game loop and audio when returning from background
 function ensureGameResumed() {
