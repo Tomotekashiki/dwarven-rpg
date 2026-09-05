@@ -10,6 +10,20 @@ if ("serviceWorker" in navigator) {
     });
 }
 
+function formatError(err) {
+    if (!err) return "Unknown error";
+    let parts = [];
+    let cur = err;
+    let depth = 0;
+    while (cur && depth < 5) {
+        let msg = cur.message || String(cur);
+        if (!parts.includes(msg)) parts.push(msg);
+        cur = cur.cause;
+        depth++;
+    }
+    return parts.join(" ➔ ");
+}
+
 // On-screen diagnostic logger for mobile browsers
 function showError(msg) {
     console.error("[App Error]", msg);
@@ -110,7 +124,7 @@ window.addEventListener("DOMContentLoaded", () => {
         console.log("Dwarven RPG loaded successfully");
         if (statusText) statusText.innerText = "თამაში მზადაა!";
     }).catch((err) => {
-        const msg = err && err.message ? err.message : String(err);
+        const msg = formatError(err);
         showError("SWF Load Error: " + msg);
         if (typeof player.reloadWithCanvasRenderer === "function") {
             currentRenderer = "canvas";
