@@ -134,7 +134,12 @@ window.addEventListener("DOMContentLoaded", () => {
     player.load({
         url: "game.swf",
         autoplay: "auto",
-        backgroundColor: "#000000"
+        backgroundColor: "#000000",
+        scale: "showAll",
+        forceScale: true,
+        forceAlign: true,
+        align: "center",
+        letterbox: "on"
     }).then(() => {
         console.log("Dwarven RPG loaded successfully");
         setGameReady();
