@@ -96,14 +96,6 @@ function unlockGlobalAudio() {
 }
 
 let player = null;
-let currentRenderer = "webgl";
-
-function updateRendererBtn() {
-    const rendererBtn = document.getElementById("renderer-btn");
-    if (rendererBtn) {
-        rendererBtn.innerText = currentRenderer === "webgl" ? "🎨 WebGL" : "🎨 Canvas";
-    }
-}
 
 window.addEventListener("DOMContentLoaded", () => {
     // Attempt orientation lock to landscape if supported
@@ -149,8 +141,6 @@ window.addEventListener("DOMContentLoaded", () => {
             showError("Ruffle Panic: " + errStr);
             if (typeof player.reloadWithCanvasRenderer === "function") {
                 console.log("Switching to Canvas renderer fallback...");
-                currentRenderer = "canvas";
-                updateRendererBtn();
                 player.reloadWithCanvasRenderer().catch((fbErr) => {
                     originalPanic(err);
                 });
@@ -180,7 +170,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Load SWF game
     player.load({
-        url: "game.swf?v=1.1.1",
+        url: "game.swf?v=1.1.2",
         autoplay: "auto",
         backgroundColor: "#000000",
         scale: "showAll",
@@ -197,8 +187,6 @@ window.addEventListener("DOMContentLoaded", () => {
         showError("SWF Load Error: " + msg);
         if (statusText) statusText.innerText = "შეცდომა ჩატვირთვისას: " + msg;
         if (typeof player.reloadWithCanvasRenderer === "function") {
-            currentRenderer = "canvas";
-            updateRendererBtn();
             player.reloadWithCanvasRenderer().then(setGameReady).catch(() => {});
         }
     });
@@ -273,24 +261,6 @@ window.addEventListener("DOMContentLoaded", () => {
             }
         });
     }
-
-    // Toggle Renderer button (WebGL <-> Canvas)
-    const rendererBtn = document.getElementById("renderer-btn");
-    if (rendererBtn) {
-        updateRendererBtn();
-        rendererBtn.addEventListener("click", () => {
-            if (!player) return;
-            if (currentRenderer === "webgl" && typeof player.reloadWithCanvasRenderer === "function") {
-                currentRenderer = "canvas";
-                updateRendererBtn();
-                player.reloadWithCanvasRenderer().catch(err => showError("Canvas switch: " + err));
-            } else {
-                location.reload();
-            }
-        });
-    }
-
-
 
     // Initialize Virtual D-Pad
     setupVirtualDpad();
