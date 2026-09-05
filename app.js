@@ -118,21 +118,15 @@ window.addEventListener("DOMContentLoaded", () => {
     const startOverlay = document.getElementById("start-overlay");
     const startBtn = document.getElementById("start-game-btn");
     const statusText = document.getElementById("status-text");
-    const spinner = document.getElementById("loading-spinner");
-    const progressFill = document.getElementById("progress-bar-fill");
 
     function setGameReady() {
         gameLoaded = true;
-        if (progressFill) progressFill.style.width = "100%";
-        if (spinner) spinner.style.display = "none";
-        if (statusText) statusText.innerText = "✨ თამაში მზადაა! დააჭირეთ დასაწყებად";
-        if (startBtn) {
-            startBtn.disabled = false;
-            startBtn.className = "ready";
+        if (statusText) statusText.innerText = "თამაში მზადაა!";
+        if (startBtn && !pendingStart) {
             startBtn.innerText = "▶️ დაიწყე თამაში";
         }
         if (pendingStart) {
-            startGame();
+            triggerGamePlay();
         }
     }
 
@@ -148,7 +142,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }).catch((err) => {
         const msg = formatError(err);
         showError("SWF Load Error: " + msg);
-        if (statusText) statusText.innerText = "შეცდომა ჩატვირთვისას";
+        if (statusText) statusText.innerText = "შეცდომა ჩატვირთვისას: " + msg;
         if (typeof player.reloadWithCanvasRenderer === "function") {
             currentRenderer = "canvas";
             updateRendererBtn();
@@ -156,14 +150,7 @@ window.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    function startGame() {
-        if (!gameLoaded) {
-            pendingStart = true;
-            if (statusText) statusText.innerText = "⏳ იტვირთება, გაეშვება წამებში...";
-            return;
-        }
-
-        unlockGlobalAudio();
+    function triggerGamePlay() {
         if (player) {
             try {
                 if (typeof player.play === "function") player.play();
@@ -184,15 +171,30 @@ window.addEventListener("DOMContentLoaded", () => {
             startOverlay.classList.add("fade-out");
             setTimeout(() => {
                 startOverlay.style.display = "none";
-            }, 350);
+            }, 300);
+        }
+    }
+
+    function onStartClicked() {
+        unlockGlobalAudio();
+        if (gameLoaded) {
+            triggerGamePlay();
+        } else {
+            pendingStart = true;
+            if (startBtn) {
+                startBtn.innerText = "⏳ იტვირთება...";
+            }
+            if (statusText) {
+                statusText.innerText = "ფაილები მზადდება, გაეშვება წამებში...";
+            }
         }
     }
 
     if (startBtn) {
-        startBtn.addEventListener("click", startGame);
+        startBtn.addEventListener("click", onStartClicked);
         startBtn.addEventListener("touchend", (e) => {
             e.preventDefault();
-            startGame();
+            onStartClicked();
         });
     }
 
