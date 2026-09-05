@@ -1,11 +1,11 @@
-const CACHE_NAME = "dwarven-rpg-v2.2.0";
+const CACHE_NAME = "dwarven-rpg-v1.1.1";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
   "./manifest.json",
   "./style.css",
-  "./app.js?v=2.2.0",
-  "./game.swf?v=2.2.0",
+  "./app.js?v=1.1.1",
+  "./game.swf?v=1.1.1",
   "./favicon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
