@@ -180,7 +180,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Load SWF game
     player.load({
-        url: "game.swf?v=2.1.0",
+        url: "game.swf?v=2.2.0",
         autoplay: "auto",
         backgroundColor: "#000000",
         scale: "showAll",

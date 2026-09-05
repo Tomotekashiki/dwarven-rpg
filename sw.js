@@ -1,11 +1,11 @@
-const CACHE_NAME = "dwarven-rpg-v2.1.0";
+const CACHE_NAME = "dwarven-rpg-v2.2.0";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
   "./manifest.json",
   "./style.css",
-  "./app.js?v=2.1.0",
-  "./game.swf?v=2.1.0",
+  "./app.js?v=2.2.0",
+  "./game.swf?v=2.2.0",
   "./favicon.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -47,8 +47,8 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-First for game.swf to guarantee fresh no-music SWF
-  if (event.request.url.includes("game.swf")) {
+  // Network-First for app.js and game.swf so code and game updates apply immediately
+  if (event.request.url.includes("app.js") || event.request.url.includes("game.swf")) {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
