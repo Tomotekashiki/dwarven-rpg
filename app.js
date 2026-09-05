@@ -112,8 +112,29 @@ window.addEventListener("DOMContentLoaded", () => {
         };
     }
 
+    let gameLoaded = false;
+    let pendingStart = false;
+
+    const startOverlay = document.getElementById("start-overlay");
+    const startBtn = document.getElementById("start-game-btn");
     const statusText = document.getElementById("status-text");
-    if (statusText) statusText.innerText = "იტვირთება...";
+    const spinner = document.getElementById("loading-spinner");
+    const progressFill = document.getElementById("progress-bar-fill");
+
+    function setGameReady() {
+        gameLoaded = true;
+        if (progressFill) progressFill.style.width = "100%";
+        if (spinner) spinner.style.display = "none";
+        if (statusText) statusText.innerText = "✨ თამაში მზადაა! დააჭირეთ დასაწყებად";
+        if (startBtn) {
+            startBtn.disabled = false;
+            startBtn.className = "ready";
+            startBtn.innerText = "▶️ დაიწყე თამაში";
+        }
+        if (pendingStart) {
+            startGame();
+        }
+    }
 
     // Load SWF game
     player.load({
@@ -122,22 +143,26 @@ window.addEventListener("DOMContentLoaded", () => {
         backgroundColor: "#000000"
     }).then(() => {
         console.log("Dwarven RPG loaded successfully");
-        if (statusText) statusText.innerText = "თამაში მზადაა!";
+        setGameReady();
+        watchWebGlContext();
     }).catch((err) => {
         const msg = formatError(err);
         showError("SWF Load Error: " + msg);
+        if (statusText) statusText.innerText = "შეცდომა ჩატვირთვისას";
         if (typeof player.reloadWithCanvasRenderer === "function") {
             currentRenderer = "canvas";
             updateRendererBtn();
-            player.reloadWithCanvasRenderer().catch(() => {});
+            player.reloadWithCanvasRenderer().then(setGameReady).catch(() => {});
         }
     });
 
-    // Start / Audio Unlock Button
-    const startOverlay = document.getElementById("start-overlay");
-    const startBtn = document.getElementById("start-game-btn");
-
     function startGame() {
+        if (!gameLoaded) {
+            pendingStart = true;
+            if (statusText) statusText.innerText = "⏳ იტვირთება, გაეშვება წამებში...";
+            return;
+        }
+
         unlockGlobalAudio();
         if (player) {
             try {
@@ -478,11 +503,11 @@ function ensureGameResumed() {
 // Debounced handler for device rotation and viewport resizing
 let screenChangeTimer = null;
 function onScreenOrientationOrResize() {
-    ensureGameResumed();
+    // Wait until the rotation animation settles to prevent viewport jumping
     if (screenChangeTimer) clearTimeout(screenChangeTimer);
     screenChangeTimer = setTimeout(() => {
         ensureGameResumed();
-    }, 350);
+    }, 250);
 }
 
 window.addEventListener("orientationchange", onScreenOrientationOrResize);

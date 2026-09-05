@@ -19,6 +19,11 @@
 
     <link rel="stylesheet" href="style.css">
 
+    <!-- Preload critical WASM and SWF game assets for ultra-fast startup -->
+    <link rel="preload" href="ruffle/core.ruffle.15317142e75ce021ac04.js" as="script">
+    <link rel="preload" href="ruffle/6ce4f603a1fe7cc88438.wasm" as="fetch" type="application/wasm" crossorigin>
+    <link rel="preload" href="game.swf" as="fetch" crossorigin>
+
     <!-- Global Ruffle Config MUST precede ruffle.js script tag -->
     <script>
         window.RufflePlayer = window.RufflePlayer || {};
@@ -72,9 +77,17 @@
             <img src="favicon.png" class="start-logo" alt="Lineage II Dwarf">
             <h1>Dwarven RPG</h1>
             <p>Lineage II Mini-Game</p>
-            <button id="start-game-btn">▶️ დაიწყე თამაში</button>
-            <div id="status-text">იტვირთება...</div>
+
+            <div id="loading-spinner" class="spinner"></div>
+            <div id="progress-bar-wrap">
+                <div id="progress-bar-fill"></div>
+            </div>
+
+            <button id="start-game-btn" class="loading-state" disabled>⏳ იტვირთება...</button>
+            <div id="status-text">გთხოვთ დაელოდოთ, თამაში მზადდება...</div>
         </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html>
