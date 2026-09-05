@@ -1,4 +1,4 @@
-const CACHE_NAME = "dwarven-rpg-v1.4.0";
+const CACHE_NAME = "dwarven-rpg-v1.4.1";
 const ASSETS_TO_CACHE = [
   "./",
   "./index.html",
