@@ -45,25 +45,33 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 // Global audio unlock state
+let audioUnlocked = false;
+let globalAudioCtx = null;
+
 function unlockGlobalAudio() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+
     if ("audioSession" in navigator) {
         try {
             navigator.audioSession.type = "playback";
         } catch (e) {}
     }
 
-    // Play short silent buffer to unlock iOS hardware audio pipeline
+    // Play short silent buffer once to unlock iOS/WebKit hardware audio pipeline
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
-            const ctx = new AudioCtx();
-            if (ctx.state === "suspended") {
-                ctx.resume().catch(() => {});
+            if (!globalAudioCtx) {
+                globalAudioCtx = new AudioCtx();
             }
-            const buffer = ctx.createBuffer(1, 1, 22050);
-            const source = ctx.createBufferSource();
+            if (globalAudioCtx.state === "suspended") {
+                globalAudioCtx.resume().catch(() => {});
+            }
+            const buffer = globalAudioCtx.createBuffer(1, 1, 22050);
+            const source = globalAudioCtx.createBufferSource();
             source.buffer = buffer;
-            source.connect(ctx.destination);
+            source.connect(globalAudioCtx.destination);
             source.start(0);
         }
     } catch (err) {}
@@ -110,12 +118,27 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     player = ruffle.createPlayer();
+    player.tabIndex = 0;
     window._gamePlayer = player;
     const container = document.getElementById("player-container");
     container.appendChild(player);
 
     player.style.width = "100%";
     player.style.height = "100%";
+
+    function focusGame() {
+        if (player) {
+            try {
+                player.focus();
+                if (player.shadowRoot) {
+                    const canvas = player.shadowRoot.querySelector("canvas");
+                    if (canvas) canvas.focus();
+                }
+            } catch (e) {}
+        }
+    }
+    container.addEventListener("click", focusGame);
+    container.addEventListener("touchstart", focusGame, { passive: true });
 
     // Auto-fallback panic handler
     if (typeof player.panic === "function") {
@@ -157,7 +180,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
     // Load SWF game
     player.load({
-        url: "game.swf?v=2.0.0",
+        url: "game.swf?v=2.1.0",
         autoplay: "auto",
         backgroundColor: "#000000",
         scale: "showAll",
@@ -181,6 +204,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
 
     function triggerGamePlay() {
+        focusGame();
         if (player) {
             try {
                 if (typeof player.play === "function") player.play();
@@ -201,6 +225,7 @@ window.addEventListener("DOMContentLoaded", () => {
             startOverlay.classList.add("fade-out");
             setTimeout(() => {
                 startOverlay.style.display = "none";
+                focusGame();
             }, 300);
         }
     }
@@ -270,10 +295,10 @@ window.addEventListener("DOMContentLoaded", () => {
     // Initialize Virtual D-Pad
     setupVirtualDpad();
 
-    // Persistent audio unlock on any user tap/touch until running (use capture phase to bypass stopPropagation)
-    window.addEventListener("touchstart", unlockGlobalAudio, { capture: true, passive: true });
-    window.addEventListener("touchend", unlockGlobalAudio, { capture: true, passive: true });
-    window.addEventListener("click", unlockGlobalAudio, { capture: true });
+    // Audio unlock on first user tap/click
+    window.addEventListener("touchstart", unlockGlobalAudio, { once: true, passive: true });
+    window.addEventListener("touchend", unlockGlobalAudio, { once: true, passive: true });
+    window.addEventListener("click", unlockGlobalAudio, { once: true });
 });
 
 // ==========================================
@@ -302,6 +327,8 @@ function sendDirectionKeyEvent(type, dir) {
         cancelable: true,
         composed: true
     });
+
+    ev._isSynthetic = true;
 
     try {
         Object.defineProperty(ev, "keyCode", { get: () => config.keyCode });
@@ -379,7 +406,6 @@ function setupVirtualDpad() {
     if (!dpad) return;
 
     function handleDpadTouch(e) {
-        unlockGlobalAudio();
         e.preventDefault();
         e.stopPropagation();
 
@@ -456,6 +482,17 @@ function setupVirtualDpad() {
         const btn = e.target.closest(".dpad-btn");
         if (btn) activateDirection(btn.getAttribute("data-dir"));
     });
+    dpad.addEventListener("mousemove", (e) => {
+        if (!isMouseDown) return;
+        const btn = e.target.closest(".dpad-btn");
+        if (btn) {
+            const dir = btn.getAttribute("data-dir");
+            for (const d of Array.from(activeDirections)) {
+                if (d !== dir) deactivateDirection(d);
+            }
+            activateDirection(dir);
+        }
+    });
     window.addEventListener("mouseup", () => {
         if (isMouseDown) {
             isMouseDown = false;
@@ -477,17 +514,34 @@ function setupVirtualDpad() {
         });
     }
 
-    // WASD keyboard support on desktop
+    // WASD and Arrow Keys keyboard support on desktop
+    const KEY_TO_DIR = {
+        KeyW: "up", ArrowUp: "up",
+        KeyA: "left", ArrowLeft: "left",
+        KeyS: "down", ArrowDown: "down",
+        KeyD: "right", ArrowRight: "right"
+    };
+
     window.addEventListener("keydown", (e) => {
-        const wasd = { KeyW: "up", KeyA: "left", KeyS: "down", KeyD: "right" };
-        if (wasd[e.code] && !e.repeat) {
-            activateDirection(wasd[e.code]);
+        if (e._isSynthetic) return;
+        const dir = KEY_TO_DIR[e.code];
+        if (dir) {
+            if (e.code.startsWith("Arrow")) {
+                e.preventDefault();
+            }
+            if (!e.repeat) {
+                activateDirection(dir);
+            }
         }
     });
     window.addEventListener("keyup", (e) => {
-        const wasd = { KeyW: "up", KeyA: "left", KeyS: "down", KeyD: "right" };
-        if (wasd[e.code]) {
-            deactivateDirection(wasd[e.code]);
+        if (e._isSynthetic) return;
+        const dir = KEY_TO_DIR[e.code];
+        if (dir) {
+            if (e.code.startsWith("Arrow")) {
+                e.preventDefault();
+            }
+            deactivateDirection(dir);
         }
     });
 }
