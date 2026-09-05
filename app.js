@@ -45,20 +45,46 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 
 // Global audio unlock state
-let audioUnlocked = false;
 function unlockGlobalAudio() {
-    if (audioUnlocked) return;
+    if ("audioSession" in navigator) {
+        try {
+            navigator.audioSession.type = "playback";
+        } catch (e) {}
+    }
+
+    // Play short silent buffer to unlock iOS hardware audio pipeline
     try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (AudioCtx) {
             const ctx = new AudioCtx();
-            ctx.resume().then(() => {
-                console.log("[Audio] System audio context unlocked successfully");
-                audioUnlocked = true;
-            }).catch(e => console.warn("[Audio] Context resume failed:", e));
+            if (ctx.state === "suspended") {
+                ctx.resume().catch(() => {});
+            }
+            const buffer = ctx.createBuffer(1, 1, 22050);
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start(0);
         }
-    } catch (err) {
-        console.warn("[Audio] Audio unlock error:", err);
+    } catch (err) {}
+
+    // Resume Ruffle internal AudioContext directly
+    const p = window._gamePlayer;
+    if (p) {
+        try {
+            if (typeof p.unmuteOverlayClicked === "function") {
+                p.unmuteOverlayClicked();
+            }
+            if (p.instance && typeof p.instance.audio_context === "function") {
+                const actx = p.instance.audio_context();
+                if (actx && actx.state !== "running") {
+                    actx.resume().then(() => {
+                        console.log("[Audio] Ruffle AudioContext is running!");
+                        if (typeof updateSoundBtn === "function") updateSoundBtn();
+                    }).catch(() => {});
+                }
+            }
+        } catch (e) {}
     }
 }
 
@@ -240,12 +266,36 @@ window.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Sound button in ui-bar
+    const soundBtn = document.getElementById("sound-btn");
+    window.updateSoundBtn = function() {
+        if (!soundBtn) return;
+        const p = window._gamePlayer;
+        const actx = p?.instance?.audio_context?.();
+        if (actx && actx.state === "running") {
+            soundBtn.innerText = "🔊 Sound ON";
+            soundBtn.style.color = "#4ade80";
+        } else {
+            soundBtn.innerText = "🔇 Sound OFF";
+            soundBtn.style.color = "#f87171";
+        }
+    };
+
+    if (soundBtn) {
+        window.updateSoundBtn();
+        soundBtn.addEventListener("click", () => {
+            unlockGlobalAudio();
+            setTimeout(window.updateSoundBtn, 300);
+        });
+    }
+
     // Initialize Virtual D-Pad
     setupVirtualDpad();
 
-    // Fallback audio unlock on any early user tap
-    window.addEventListener("touchstart", unlockGlobalAudio, { once: true });
-    window.addEventListener("click", unlockGlobalAudio, { once: true });
+    // Persistent audio unlock on any user tap/touch until running (use capture phase to bypass stopPropagation)
+    window.addEventListener("touchstart", unlockGlobalAudio, { capture: true, passive: true });
+    window.addEventListener("touchend", unlockGlobalAudio, { capture: true, passive: true });
+    window.addEventListener("click", unlockGlobalAudio, { capture: true });
 });
 
 // ==========================================
@@ -351,6 +401,7 @@ function setupVirtualDpad() {
     if (!dpad) return;
 
     function handleDpadTouch(e) {
+        unlockGlobalAudio();
         e.preventDefault();
         e.stopPropagation();
 
